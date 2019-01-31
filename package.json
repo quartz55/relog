@@ -1,21 +1,39 @@
 {
-  "name": "relog",
+  "name": "@quartz55/relog",
   "version": "0.1.0",
+  "author": "quartz55",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/quartz55/relog.git"
+  },
+  "homepage": "https://github.com/quartz55/relog.git",
+  "files": [
+    "src/**.re",
+    "bsconfig.json"
+  ],
   "scripts": {
     "build": "bsb -make-world",
+    "watch": "bsb -clean-world -make-world -w",
     "start": "bsb -make-world -w",
     "clean": "bsb -clean-world"
   },
   "keywords": [
-    "BuckleScript"
+    "BuckleScript",
+    "ReasonML",
+    "Log",
+    "Logging",
+    "Continuations",
+    "CPS"
   ],
-  "author": "",
-  "license": "MIT",
-  "devDependencies": {
-    "bs-platform": "^4.0.18"
-  },
   "dependencies": {
     "chalk": "^2.4.2",
     "luxon": "^1.10.0"
+  },
+  "devDependencies": {
+    "bs-platform": "^4.0.18"
+  },
+  "peerDependencies": {
+    "bs-platform": "^4.0.18"
   }
 }

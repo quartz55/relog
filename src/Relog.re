@@ -65,68 +65,6 @@ type event('a, 'b) = {
   context: Js.Dict.t(string),
 };
 
-type reporter = {
-  report: 'a 'b. (event('a, 'b), ~over: unit => unit, unit => 'b) => 'b,
-};
-let nop_reporter = {
-  report: (_, ~over, k) => {
-    over();
-    k();
-  },
-};
-
-let pp_header = (ppf, l) => Format.fprintf(ppf, "[DEBUG]");
-
-let format_reporter = (~level=Level.Debug, ~app=Format.std_formatter, ()) => {
-  let report = ({level: evtLevel, message, ts, namespace}, ~over, k) => {
-    let k = _ => {
-      over();
-      k();
-    };
-    message @@
-    (
-      fmt => {
-        let ppf = app;
-        if (Level.compare(level, evtLevel) >= 0) {
-          let timestamp = ts |> DateTime.toISO;
-          let ns_fmt =
-            Belt.Option.mapWithDefault(namespace, "", ns => "[" ++ ns ++ "]");
-          let level_fmt =
-            evtLevel
-            |> Level.toString
-            |> Js.String.toUpperCase
-            |> Printf.sprintf("%-5s")
-            |> Level.colorize(evtLevel);
-
-          Format.kfprintf(
-            k,
-            ppf,
-            "@[%s@ [%s]@ %s@]@.@[" ^^ fmt ^^ "@]",
-            timestamp,
-            level_fmt,
-            ns_fmt,
-          );
-        } else {
-          k();
-        };
-      }
-    );
-  };
-  {report: report};
-};
-
-let report = (event, ~over, k) => format_reporter().report(event, ~over, k);
-
-let over = () => ();
-let kunit = _ => ();
-let kmsg: type a b. (unit => b, event(a, b)) => b =
-  (k, event) =>
-    if (true) {
-      report(event, ~over, k);
-    } else {
-      k();
-    };
-
 let now = () => DateTime.local();
 
 let makeEvent = (~ts=now(), ~message, ~namespace=?, level) => {
@@ -137,23 +75,79 @@ let makeEvent = (~ts=now(), ~message, ~namespace=?, level) => {
   context: Js.Dict.empty(),
 };
 
+type reporter = {
+  report: 'a 'b. (event('a, 'b), ~over: unit => unit, unit => 'b) => 'b,
+};
+
+let nop_reporter = {
+  report: (_, ~over, k) => {
+    over();
+    k();
+  },
+};
+
+let pp_ts = (ppf, ts) => Format.fprintf(ppf, "%s", ts |> DateTime.toISO);
+let pp_level = (ppf, level) => {
+  let level_fmt =
+    level
+    |> Level.toString
+    |> Js.String.toUpperCase
+    |> Printf.sprintf("%-5s")
+    |> Level.colorize(level);
+  Format.fprintf(ppf, "[%s]", level_fmt);
+};
+let pp_namespace = (ppf, ns) => {
+  switch (ns) {
+  | Some(ns) => Format.fprintf(ppf, "[%s]", ns)
+  | None => ()
+  };
+};
+let format_reporter = (~level=Level.Debug, ~out=Format.std_formatter, ()) => {
+  let report = ({level: evtLevel, message, ts, namespace}, ~over, k) => {
+    let k = _ => {
+      over();
+      k();
+    };
+    if (Level.compare(level, evtLevel) >= 0) {
+      message(fmt =>
+        Format.kfprintf(
+          k,
+          out,
+          "@[%a@ %a@ %a@]@.@[" ^^ fmt ^^ "@]@.",
+          pp_ts,
+          ts,
+          pp_level,
+          evtLevel,
+          pp_namespace,
+          namespace,
+        )
+      );
+    } else {
+      k();
+    };
+  };
+  {report: report};
+};
+
 let _reporter = ref(nop_reporter);
-
-/* let consoleReporter = (level, evt) =>
-   }; */
-
 let setReporter = reporter => _reporter := reporter;
+let report = (event, ~over, k) => _reporter^.report(event, ~over, k);
+
+let over = () => ();
+let kunit = _ => ();
+let kmsg: type a b. (unit => b, event(a, b)) => b =
+  (k, event) => report(event, ~over, k);
 
 module type Logger = {
   let namespace: string;
-  let trace: msgf('a, unit) => unit;
-  let debug: msgf('a, unit) => unit;
-  let info: msgf('a, unit) => unit;
-  let warn: msgf('a, unit) => unit;
-  let error: msgf('a, unit) => unit;
+  let trace: log('a);
+  let debug: log('a);
+  let info: log('a);
+  let warn: log('a);
+  let error: log('a);
 };
 
-module MakeLogger = (M: {let namespace: string;}) : Logger => {
+module Make = (M: {let namespace: string;}) : Logger => {
   let namespace = M.namespace;
 
   let log = (~message, level) => {
@@ -167,10 +161,15 @@ module MakeLogger = (M: {let namespace: string;}) : Logger => {
   let error = message => log(~message, Level.Error);
 };
 
-let () = {
-  module TestL =
-    MakeLogger({
-      let namespace = "TestLogger";
-    });
-  TestL.debug(m => m("Hello %s", "world"));
-};
+/* let () = {
+     setReporter(format_reporter());
+     module TestL =
+       Make({
+         let namespace = "TestLogger";
+       });
+     TestL.trace(m => m("Hello %s", "world"));
+     TestL.debug(m => m("Hello %s", "world"));
+     TestL.info(m => m("Hello %s", "world"));
+     TestL.warn(m => m("Hello %s", "world"));
+     TestL.error(m => m("Hello %s", "world"));
+   }; */
