@@ -8,8 +8,9 @@
     "url": "https://github.com/quartz55/relog.git"
   },
   "homepage": "https://github.com/quartz55/relog.git",
+  "main": "lib/bs/Relog.js",
   "files": [
-    "src/**.re",
+    "src/",
     "bsconfig.json"
   ],
   "scripts": {
