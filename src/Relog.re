@@ -160,16 +160,3 @@ module Make = (M: {let namespace: string;}) : Logger => {
   let warn = message => log(~message, Level.Warn);
   let error = message => log(~message, Level.Error);
 };
-
-/* let () = {
-     setReporter(format_reporter());
-     module TestL =
-       Make({
-         let namespace = "TestLogger";
-       });
-     TestL.trace(m => m("Hello %s", "world"));
-     TestL.debug(m => m("Hello %s", "world"));
-     TestL.info(m => m("Hello %s", "world"));
-     TestL.warn(m => m("Hello %s", "world"));
-     TestL.error(m => m("Hello %s", "world"));
-   }; */

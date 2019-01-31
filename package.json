@@ -1,6 +1,6 @@
 {
   "name": "@quartz55/relog",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": "quartz55",
   "license": "MIT",
   "repository": {
@@ -9,14 +9,15 @@
   },
   "homepage": "https://github.com/quartz55/relog.git",
   "files": [
-    "src/**.re",
+    "src/",
     "bsconfig.json"
   ],
   "scripts": {
     "build": "bsb -make-world",
     "watch": "bsb -clean-world -make-world -w",
     "start": "bsb -make-world -w",
-    "clean": "bsb -clean-world"
+    "clean": "bsb -clean-world",
+    "examples": "npm run build && ./run-examples.sh"
   },
   "keywords": [
     "BuckleScript",
