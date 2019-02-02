@@ -1,11 +1,29 @@
-Relog.setReporter(Relog.format_reporter(~level=Relog.Level.Debug, ()));
-module TestL =
+module ExLogger =
   Relog.Make({
-    let namespace = "Examples:Core";
+    let namespace = "Examples";
   });
+module L =
+  Relog.Derive(
+    ExLogger,
+    {
+      let namespace = "Core";
+    },
+  );
 
-TestL.trace(m => m("Hello %s from TRACE", "world"));
-TestL.debug(m => m("Hello %s from DEBUG", "world"));
-TestL.info(m => m("Hello %s from INFO", "world"));
-TestL.warn(m => m("Hello %s from WARN", "world"));
-TestL.error(m => m("Hello %s from ERROR", "world"));
+Relog.setReporter(Relog.format_reporter(~level=Relog.Level.Debug, ()));
+
+L.trace(m => m("Hello %s from TRACE", "world"));
+L.debug(m => m("Hello %s from DEBUG", "world"));
+L.info(m => m("Hello %s from INFO", "world"));
+L.warn(m => m("Hello %s from WARN", "world"));
+L.error(m => m("Hello %s from ERROR", "world"));
+
+Relog.setReporter(
+  Relog.format_reporter(~color=false, ~level=Relog.Level.Debug, ()),
+);
+
+L.trace(m => m("Hello %s from TRACE (no color)", "world"));
+L.debug(m => m("Hello %s from DEBUG (no color)", "world"));
+L.info(m => m("Hello %s from INFO (no color)", "world"));
+L.warn(m => m("Hello %s from WARN (no color)", "world"));
+L.error(m => m("Hello %s from ERROR (no color)", "world"));

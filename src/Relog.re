@@ -54,13 +54,13 @@ module Level = {
     };
 };
 
-type msgf('a, 'b) = (format4('a, Format.formatter, unit, 'b) => 'a) => 'b;
-type log('a) = msgf('a, unit) => unit;
+type msgf('a) = (format4('a, Format.formatter, unit, unit) => 'a) => unit;
+type log('a) = msgf('a) => unit;
 
-type event('a, 'b) = {
+type event('a) = {
   ts: DateTime.t,
   level: Level.t,
-  message: msgf('a, 'b),
+  message: msgf('a),
   namespace: option(string),
   context: Js.Dict.t(string),
 };
@@ -75,25 +75,16 @@ let makeEvent = (~ts=now(), ~message, ~namespace=?, level) => {
   context: Js.Dict.empty(),
 };
 
-type reporter = {
-  report: 'a 'b. (event('a, 'b), ~over: unit => unit, unit => 'b) => 'b,
-};
-
-let nop_reporter = {
-  report: (_, ~over, k) => {
-    over();
-    k();
-  },
-};
+type reporter = {report: 'a. event('a) => unit};
 
 let pp_ts = (ppf, ts) => Format.fprintf(ppf, "%s", ts |> DateTime.toISO);
-let pp_level = (ppf, level) => {
+let pp_level = (ppf, (color, level)) => {
   let level_fmt =
     level
     |> Level.toString
     |> Js.String.toUpperCase
     |> Printf.sprintf("%-5s")
-    |> Level.colorize(level);
+    |> (color ? Level.colorize(level) : (v => v));
   Format.fprintf(ppf, "[%s]", level_fmt);
 };
 let pp_namespace = (ppf, ns) => {
@@ -102,41 +93,50 @@ let pp_namespace = (ppf, ns) => {
   | None => ()
   };
 };
-let format_reporter = (~level=Level.Debug, ~out=Format.std_formatter, ()) => {
-  let report = ({level: evtLevel, message, ts, namespace}, ~over, k) => {
-    let k = _ => {
-      over();
-      k();
-    };
-    if (Level.compare(level, evtLevel) >= 0) {
-      message(fmt =>
-        Format.kfprintf(
-          k,
-          out,
-          "@[%a@ %a@ %a@]@.@[" ^^ fmt ^^ "@]@.",
-          pp_ts,
-          ts,
-          pp_level,
-          evtLevel,
-          pp_namespace,
-          namespace,
-        )
-      );
-    } else {
-      k();
-    };
+
+type formater = {format: 'a. (Format.formatter, event('a)) => unit};
+
+let default_formatter = (~color=true, ()) => {
+  let format = (ppf, evt) => {
+    let {level, message, ts, namespace} = evt;
+    message(fmt =>
+      Format.fprintf(
+        ppf,
+        "@[%a@ %a@ %a@]@.@[" ^^ fmt ^^ "@]@.",
+        pp_ts,
+        ts,
+        pp_level,
+        (color, level),
+        pp_namespace,
+        namespace,
+      )
+    );
   };
+  {format: format};
+};
+
+let make_reporter = (~level=Level.Debug, ~formatter=default_formatter(), ()) => {
+  let report: type a. event(a) => unit =
+    evt =>
+      if (Level.compare(level, evt.level) >= 0) {
+        formatter.format(Format.std_formatter, evt);
+      };
   {report: report};
+};
+
+let nop_reporter = {report: _ => ()};
+
+let format_reporter = (~level=Level.Debug, ~color=true, ()) => {
+  make_reporter(~level, ~formatter=default_formatter(~color, ()), ());
 };
 
 let _reporter = ref(nop_reporter);
 let setReporter = reporter => _reporter := reporter;
-let report = (event, ~over, k) => _reporter^.report(event, ~over, k);
+let report = event => _reporter^.report(event);
 
-let over = () => ();
-let kunit = _ => ();
-let kmsg: type a b. (unit => b, event(a, b)) => b =
-  (k, event) => report(event, ~over, k);
+let msg: type a. event(a) => unit = event => report(event);
+
+module type LoggerS = {let namespace: string;};
 
 module type Logger = {
   let namespace: string;
@@ -147,16 +147,22 @@ module type Logger = {
   let error: log('a);
 };
 
-module Make = (M: {let namespace: string;}) : Logger => {
+module Make = (M: LoggerS) : Logger => {
   let namespace = M.namespace;
 
   let log = (~message, level) => {
     let evt = makeEvent(~message, ~namespace, level);
-    kmsg(kunit, evt);
+    msg(evt);
   };
   let trace = message => log(~message, Level.Trace);
   let debug = message => log(~message, Level.Debug);
   let info = message => log(~message, Level.Info);
   let warn = message => log(~message, Level.Warn);
   let error = message => log(~message, Level.Error);
+};
+
+module Derive = (P: LoggerS, M: LoggerS) : Logger => {
+  include Make({
+    let namespace = [P.namespace, M.namespace] |> String.concat(":");
+  });
 };
